@@ -28,8 +28,8 @@ type csvDecoder struct {
 	CSVReader
 }
 
-func newSimpleDecoderFromReader(r io.Reader) SimpleDecoder {
-	return csvDecoder{getCSVReader(r)}
+func (c CSV) newSimpleDecoderFromReader(r io.Reader) SimpleDecoder {
+	return csvDecoder{c.getCSVReader(r)}
 }
 
 // NewSimpleDecoderFromCSVReader creates a SimpleDecoder, which may be passed
@@ -116,19 +116,19 @@ func maybeDoubleHeaderNames(headers []string) error {
 }
 
 // apply normalizer func to headers
-func normalizeHeaders(headers []string) []string {
+func (c CSV) normalizeHeaders(headers []string) []string {
 	out := make([]string, len(headers))
 	for i, h := range headers {
-		out[i] = normalizeName(h)
+		out[i] = c.normalizeName(h)
 	}
 	return out
 }
 
-func readTo(decoder Decoder, out interface{}) error {
-	return readToWithErrorHandler(decoder, nil, out)
+func (c CSV) readTo(decoder Decoder, out interface{}) error {
+	return c.readToWithErrorHandler(decoder, nil, out)
 }
 
-func readToWithErrorHandler(decoder Decoder, errHandler ErrorHandler, out interface{}) error {
+func (c CSV) readToWithErrorHandler(decoder Decoder, errHandler ErrorHandler, out interface{}) error {
 	outValue, outType := getConcreteReflectValueAndType(out) // Get the concrete type (not pointer) (Slice<?> or Array<?>)
 	if err := ensureOutType(outType); err != nil {
 		return err
@@ -147,12 +147,12 @@ func readToWithErrorHandler(decoder Decoder, errHandler ErrorHandler, out interf
 	if err := ensureOutCapacity(&outValue, len(csvRows)); err != nil { // Ensure the container is big enough to hold the CSV content
 		return err
 	}
-	outInnerStructInfo := getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
+	outInnerStructInfo := c.getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
 	if len(outInnerStructInfo.Fields) == 0 {
 		return errors.New("no csv struct tags found")
 	}
 
-	headers := normalizeHeaders(csvRows[0])
+	headers := c.normalizeHeaders(csvRows[0])
 	body := csvRows[1:]
 
 	csvHeadersLabels := make(map[int]*fieldInfo, len(outInnerStructInfo.Fields)) // Used to store the correspondance header <-> position in CSV
@@ -162,19 +162,19 @@ func readToWithErrorHandler(decoder Decoder, errHandler ErrorHandler, out interf
 		curHeaderCount := headerCount[csvColumnHeader]
 		if fieldInfo := getCSVFieldPosition(csvColumnHeader, outInnerStructInfo, curHeaderCount); fieldInfo != nil {
 			csvHeadersLabels[i] = fieldInfo
-			if ShouldAlignDuplicateHeadersWithStructFieldOrder {
+			if c.shouldAlignDuplicateHeadersWithStructFieldOrder {
 				curHeaderCount++
 				headerCount[csvColumnHeader] = curHeaderCount
 			}
 		}
 	}
 
-	if FailIfUnmatchedStructTags {
+	if c.failIfUnmatchedStructTags {
 		if err := maybeMissingStructFields(outInnerStructInfo.Fields, headers); err != nil {
 			return err
 		}
 	}
-	if FailIfDoubleHeaderNames {
+	if c.failIfDoubleHeaderNames {
 		if err := maybeDoubleHeaderNames(headers); err != nil {
 			return err
 		}
@@ -227,10 +227,10 @@ func readToWithErrorHandler(decoder Decoder, errHandler ErrorHandler, out interf
 	return nil
 }
 
-func readEach(decoder SimpleDecoder, c interface{}) error {
-	outValue, outType := getConcreteReflectValueAndType(c) // Get the concrete type (not pointer)
+func (c CSV) readEach(decoder SimpleDecoder, o interface{}) error {
+	outValue, outType := getConcreteReflectValueAndType(o) // Get the concrete type (not pointer)
 	if outType.Kind() != reflect.Chan {
-		return fmt.Errorf("cannot use %v with type %s, only channel supported", c, outType)
+		return fmt.Errorf("cannot use %v with type %s, only channel supported", o, outType)
 	}
 	defer outValue.Close()
 
@@ -238,13 +238,13 @@ func readEach(decoder SimpleDecoder, c interface{}) error {
 	if err != nil {
 		return err
 	}
-	headers = normalizeHeaders(headers)
+	headers = c.normalizeHeaders(headers)
 
 	outInnerWasPointer, outInnerType := getConcreteContainerInnerType(outType) // Get the concrete inner type (not pointer) (Container<"?">)
 	if err := ensureOutInnerType(outInnerType); err != nil {
 		return err
 	}
-	outInnerStructInfo := getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
+	outInnerStructInfo := c.getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
 	if len(outInnerStructInfo.Fields) == 0 {
 		return errors.New("no csv struct tags found")
 	}
@@ -254,18 +254,18 @@ func readEach(decoder SimpleDecoder, c interface{}) error {
 		curHeaderCount := headerCount[csvColumnHeader]
 		if fieldInfo := getCSVFieldPosition(csvColumnHeader, outInnerStructInfo, curHeaderCount); fieldInfo != nil {
 			csvHeadersLabels[i] = fieldInfo
-			if ShouldAlignDuplicateHeadersWithStructFieldOrder {
+			if c.shouldAlignDuplicateHeadersWithStructFieldOrder {
 				curHeaderCount++
 				headerCount[csvColumnHeader] = curHeaderCount
 			}
 		}
 	}
 	if err := maybeMissingStructFields(outInnerStructInfo.Fields, headers); err != nil {
-		if FailIfUnmatchedStructTags {
+		if c.failIfUnmatchedStructTags {
 			return err
 		}
 	}
-	if FailIfDoubleHeaderNames {
+	if c.failIfDoubleHeaderNames {
 		if err := maybeDoubleHeaderNames(headers); err != nil {
 			return err
 		}
@@ -296,8 +296,8 @@ func readEach(decoder SimpleDecoder, c interface{}) error {
 	return nil
 }
 
-func readEachWithoutHeaders(decoder SimpleDecoder, c interface{}) error {
-	outValue, outType := getConcreteReflectValueAndType(c) // Get the concrete type (not pointer) (Slice<?> or Array<?>)
+func (c CSV) readEachWithoutHeaders(decoder SimpleDecoder, o interface{}) error {
+	outValue, outType := getConcreteReflectValueAndType(o) // Get the concrete type (not pointer) (Slice<?> or Array<?>)
 	if err := ensureOutType(outType); err != nil {
 		return err
 	}
@@ -307,7 +307,7 @@ func readEachWithoutHeaders(decoder SimpleDecoder, c interface{}) error {
 	if err := ensureOutInnerType(outInnerType); err != nil {
 		return err
 	}
-	outInnerStructInfo := getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
+	outInnerStructInfo := c.getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
 	if len(outInnerStructInfo.Fields) == 0 {
 		return errors.New("no csv struct tags found")
 	}
@@ -337,7 +337,7 @@ func readEachWithoutHeaders(decoder SimpleDecoder, c interface{}) error {
 	return nil
 }
 
-func readToWithoutHeaders(decoder Decoder, out interface{}) error {
+func (c CSV) readToWithoutHeaders(decoder Decoder, out interface{}) error {
 	outValue, outType := getConcreteReflectValueAndType(out) // Get the concrete type (not pointer) (Slice<?> or Array<?>)
 	if err := ensureOutType(outType); err != nil {
 		return err
@@ -356,7 +356,7 @@ func readToWithoutHeaders(decoder Decoder, out interface{}) error {
 	if err := ensureOutCapacity(&outValue, len(csvRows)+1); err != nil { // Ensure the container is big enough to hold the CSV content
 		return err
 	}
-	outInnerStructInfo := getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
+	outInnerStructInfo := c.getStructInfo(outInnerType) // Get the inner struct info to get CSV annotations
 	if len(outInnerStructInfo.Fields) == 0 {
 		return errors.New("no csv struct tags found")
 	}

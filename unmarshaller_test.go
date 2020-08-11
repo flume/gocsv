@@ -19,7 +19,7 @@ c,d,e
 
 	reader := csv.NewReader(strings.NewReader(csvContents))
 	reader.FieldsPerRecord = -1
-	um, err := NewUnmarshaller(reader, sample{})
+	um, err := New().NewUnmarshaller(reader, sample{})
 	if err != nil {
 		t.Fatalf("Error calling NewUnmarshaller: %#v", err)
 	}

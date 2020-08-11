@@ -18,10 +18,12 @@ func Test_readTo(t *testing.T) {
 	b := bytes.NewBufferString(`foo,BAR,Baz,Blah,SPtr,Omit
 f,1,baz,,*string,*string
 e,3,b,,,`)
-	d := newSimpleDecoderFromReader(b)
+	c := New()
+
+	d := c.newSimpleDecoderFromReader(b)
 
 	var samples []Sample
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	if len(samples) != 2 {
@@ -41,9 +43,9 @@ e,3,b,,,`)
 	b = bytes.NewBufferString(`foo,BAR,Baz
 f,1,baz
 e,BAD_INPUT,b`)
-	d = newSimpleDecoderFromReader(b)
+	d = c.newSimpleDecoderFromReader(b)
 	samples = []Sample{}
-	err := readTo(d, &samples)
+	err := c.readTo(d, &samples)
 	if err == nil {
 		t.Fatalf("Expected error from bad input, got: %+v", samples)
 	}
@@ -62,10 +64,11 @@ e,BAD_INPUT,b`)
 }
 
 func Test_readToNormalized(t *testing.T) {
-	SetHeaderNormalizer(func(s string) string {
+	c := New()
+	c.SetHeaderNormalizer(func(s string) string {
 		return strings.ToLower(s)
 	})
-	defer SetHeaderNormalizer(DefaultNameNormalizer())
+	defer c.SetHeaderNormalizer(DefaultNameNormalizer())
 
 	blah := 0
 	sptr := "*string"
@@ -73,10 +76,10 @@ func Test_readToNormalized(t *testing.T) {
 	b := bytes.NewBufferString(`FOO,BAR,BAZ,BLAH,SPTR,OMIT
 f,1,baz,,*string,*string
 e,3,b,,,`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 
 	var samples []Sample
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	if len(samples) != 2 {
@@ -96,9 +99,9 @@ e,3,b,,,`)
 	b = bytes.NewBufferString(`foo,BAR,Baz
 f,1,baz
 e,BAD_INPUT,b`)
-	d = newSimpleDecoderFromReader(b)
+	d = c.newSimpleDecoderFromReader(b)
 	samples = []Sample{}
-	err := readTo(d, &samples)
+	err := c.readTo(d, &samples)
 	if err == nil {
 		t.Fatalf("Expected error from bad input, got: %+v", samples)
 	}
@@ -117,12 +120,13 @@ e,BAD_INPUT,b`)
 }
 
 func Test_readTo_Time(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`Foo
 1970-01-01T03:01:00+03:00`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 
 	var samples []DateTime
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 
@@ -136,13 +140,14 @@ func Test_readTo_Time(t *testing.T) {
 }
 
 func Test_readTo_complex_embed(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`first,foo,BAR,Baz,last,abc
 aa,bb,11,cc,dd,ee
 ff,gg,22,hh,ii,jj`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 
 	var samples []SkipFieldSample
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	if len(samples) != 2 {
@@ -181,12 +186,14 @@ ff,gg,22,hh,ii,jj`)
 }
 
 func Test_readTo_embed_ptr(t *testing.T) {
+	c := New()
+
 	b := bytes.NewBufferString(`first,foo,BAR,Baz,last,abc
 aa,bb,11,cc,dd,ee
 ff,gg,22,hh,ii,jj`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 	var rows []EmbedPtrSample
-	if err := readTo(d, &rows); err != nil {
+	if err := c.readTo(d, &rows); err != nil {
 		t.Fatalf(err.Error())
 	}
 	expected := EmbedPtrSample{
@@ -204,6 +211,7 @@ ff,gg,22,hh,ii,jj`)
 }
 
 func Test_readTo_slice(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`Slice
 []
 [1, 2, 3]`)
@@ -211,7 +219,7 @@ func Test_readTo_slice(t *testing.T) {
 	reader.Comma = '\t'
 	d := csvDecoder{reader}
 	samples := []SliceSample{}
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	expected := SliceSample{Slice: []int{}}
@@ -225,11 +233,12 @@ func Test_readTo_slice(t *testing.T) {
 }
 
 func Test_readTo_embed_marshal(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`foo
 bar`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 	var rows []EmbedMarshal
-	if err := readTo(d, &rows); err != nil {
+	if err := c.readTo(d, &rows); err != nil {
 		t.Fatalf(err.Error())
 	}
 	expected := EmbedMarshal{
@@ -241,19 +250,20 @@ bar`)
 }
 
 func Test_readEach(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`first,foo,BAR,Baz,last,abc
 aa,bb,11,cc,dd,ee
 ff,gg,22,hh,ii,jj`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 
-	c := make(chan SkipFieldSample)
+	o := make(chan SkipFieldSample)
 	var samples []SkipFieldSample
 	go func() {
-		if err := readEach(d, c); err != nil {
+		if err := c.readEach(d, o); err != nil {
 			t.Fatal(err)
 		}
 	}()
-	for v := range c {
+	for v := range o {
 		samples = append(samples, v)
 	}
 	if len(samples) != 2 {
@@ -292,20 +302,21 @@ ff,gg,22,hh,ii,jj`)
 }
 
 func Test_readEachWithoutHeaders(t *testing.T) {
+	c := New()
 	blah := 0
 	sptr := ""
 	b := bytes.NewBufferString(`f,1,baz,1.66,,,
 e,3,b,,,,`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 
-	c := make(chan Sample)
+	o := make(chan Sample)
 	var samples []Sample
 	go func() {
-		if err := readEachWithoutHeaders(d, c); err != nil {
+		if err := c.readEachWithoutHeaders(d, o); err != nil {
 			t.Fatal(err)
 		}
 	}()
-	for v := range c {
+	for v := range o {
 		samples = append(samples, v)
 	}
 	if len(samples) != 2 {
@@ -362,10 +373,11 @@ func Test_maybeMissingStructFields(t *testing.T) {
 }
 
 func Test_maybeDoubleHeaderNames(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`foo,BAR,foo
 f,1,baz
 e,3,b`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 	var samples []Sample
 
 	// *** check maybeDoubleHeaderNames
@@ -374,7 +386,7 @@ e,3,b`)
 	}
 
 	// *** check readTo
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	// Double header allowed, value should be of third row
@@ -385,9 +397,9 @@ e,3,b`)
 	b = bytes.NewBufferString(`foo,BAR,foo
 f,1,baz
 e,3,b`)
-	d = newSimpleDecoderFromReader(b)
-	ShouldAlignDuplicateHeadersWithStructFieldOrder = true
-	if err := readTo(d, &samples); err != nil {
+	c = New(WithShouldAlign())
+	d = c.newSimpleDecoderFromReader(b)
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	// Double header allowed, value should be of first row
@@ -395,27 +407,26 @@ e,3,b`)
 		t.Fatal("Double header allowed, value should be of first row but is not. Function called is readTo.")
 	}
 
-	ShouldAlignDuplicateHeadersWithStructFieldOrder = false
+	c = New(WithFailDoubleHeader())
 	// Double header not allowed, should fail
-	FailIfDoubleHeaderNames = true
-	if err := readTo(d, &samples); err == nil {
+	if err := c.readTo(d, &samples); err == nil {
 		t.Fatal("Double header not allowed but no error raised. Function called is readTo.")
 	}
 
 	// *** check readEach
-	FailIfDoubleHeaderNames = false
 	b = bytes.NewBufferString(`foo,BAR,foo
 f,1,baz
 e,3,b`)
-	d = newSimpleDecoderFromReader(b)
+	c = New()
+	d = c.newSimpleDecoderFromReader(b)
 	samples = samples[:0]
-	c := make(chan Sample)
+	o := make(chan Sample)
 	go func() {
-		if err := readEach(d, c); err != nil {
+		if err := c.readEach(d, o); err != nil {
 			t.Fatal(err)
 		}
 	}()
-	for v := range c {
+	for v := range o {
 		samples = append(samples, v)
 	}
 	// Double header allowed, value should be of third row
@@ -423,28 +434,29 @@ e,3,b`)
 		t.Fatal("Double header allowed, value should be of third row but is not. Function called is readEach.")
 	}
 	// Double header not allowed, should fail
-	FailIfDoubleHeaderNames = true
+	c = New(WithFailDoubleHeader())
 	b = bytes.NewBufferString(`foo,BAR,foo
 f,1,baz
 e,3,b`)
-	d = newSimpleDecoderFromReader(b)
-	c = make(chan Sample)
+	d = c.newSimpleDecoderFromReader(b)
+	o = make(chan Sample)
 	go func() {
-		if err := readEach(d, c); err == nil {
+		if err := c.readEach(d, o); err == nil {
 			t.Fatal("Double header not allowed but no error raised. Function called is readEach.")
 		}
 	}()
-	for v := range c {
+	for v := range o {
 		samples = append(samples, v)
 	}
 }
 
 func TestUnmarshalToCallback(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`first,foo,BAR,Baz,last,abc
 aa,bb,11,cc,dd,ee
 ff,gg,22,hh,ii,jj`)
 	var samples []SkipFieldSample
-	if err := UnmarshalBytesToCallback(b.Bytes(), func(s SkipFieldSample) {
+	if err := c.UnmarshalBytesToCallback(b.Bytes(), func(s SkipFieldSample) {
 		samples = append(samples, s)
 	}); err != nil {
 		t.Fatal(err)
@@ -486,8 +498,9 @@ ff,gg,22,hh,ii,jj`)
 
 // TestRenamedTypes tests for unmarshaling functions on redefined basic types.
 func TestRenamedTypesUnmarshal(t *testing.T) {
+	c := New()
 	// Set different csv field separator to enable comma in floats
-	SetCSVReader(func(in io.Reader) CSVReader {
+	c.SetCSVReader(func(in io.Reader) CSVReader {
 		csvin := csv.NewReader(in)
 		csvin.Comma = ';'
 		return csvin
@@ -496,13 +509,13 @@ func TestRenamedTypesUnmarshal(t *testing.T) {
 	b := bytes.NewBufferString(`foo;bar
 1,4;1.5
 2,3;2.4`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 	var samples []RenamedSample
 
 	// Switch back to default for tests executed after this
-	defer SetCSVReader(DefaultCSVReader)
+	defer c.SetCSVReader(DefaultCSVReader)
 
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	if samples[0].RenamedFloatUnmarshaler != 1.4 {
@@ -515,9 +528,9 @@ func TestRenamedTypesUnmarshal(t *testing.T) {
 	// Test that errors raised by UnmarshalCSV are correctly reported
 	b = bytes.NewBufferString(`foo;bar
 4.2;2.4`)
-	d = newSimpleDecoderFromReader(b)
+	d = c.newSimpleDecoderFromReader(b)
 	samples = samples[:0]
-	if perr, _ := readTo(d, &samples).(*csv.ParseError); perr == nil {
+	if perr, _ := c.readTo(d, &samples).(*csv.ParseError); perr == nil {
 		t.Fatalf("Expected ParseError, got nil.")
 	} else if _, ok := perr.Err.(UnmarshalError); !ok {
 		t.Fatalf("Expected UnmarshalError, got %v", perr.Err)
@@ -542,11 +555,12 @@ func (rf *RenamedFloat64Unmarshaler) UnmarshalCSV(csv string) (err error) {
 
 // TestUnmarshalCSVWithFields test that the TestUnmarshalCSVWithFields interface to marshall all the fields works
 func TestUnmarshalCSVWithFields(t *testing.T) {
+	c := New()
 	b := []byte(`foo,bar,baz,frop
 bar,1,zip,3.14
 baz,2,zap,4.00`)
 	var samples []UnmarshalCSVWithFieldsSample
-	err := UnmarshalBytes(b, &samples)
+	err := c.UnmarshalBytes(b, &samples)
 	if err != nil {
 		t.Fatalf("UnmarshalCSVWithFields() -> UnmarshalBytes() %v", err)
 	}
@@ -629,12 +643,13 @@ func (e UnmarshalError) Error() string {
 }
 
 func TestMultipleStructTags(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`foo,BAR,Baz
 e,3,b`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 
 	var samples []MultiTagSample
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	if samples[0].Foo != "b" {
@@ -643,9 +658,9 @@ e,3,b`)
 
 	b = bytes.NewBufferString(`foo,BAR
 e,3`)
-	d = newSimpleDecoderFromReader(b)
+	d = c.newSimpleDecoderFromReader(b)
 
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	if samples[0].Foo != "e" {
@@ -654,9 +669,9 @@ e,3`)
 
 	b = bytes.NewBufferString(`BAR,Baz
 3,b`)
-	d = newSimpleDecoderFromReader(b)
+	d = c.newSimpleDecoderFromReader(b)
 
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 	if samples[0].Foo != "b" {
@@ -665,18 +680,15 @@ e,3`)
 }
 
 func TestStructTagSeparator(t *testing.T) {
+
 	b := bytes.NewBufferString(`foo,BAR,Baz
 e,3,b`)
-	d := newSimpleDecoderFromReader(b)
 
-	defaultTagSeparator := TagSeparator
-	TagSeparator = "|"
-	defer func() {
-		TagSeparator = defaultTagSeparator
-	}()
+	c := New(WithTagSeparator("|"))
+	d := c.newSimpleDecoderFromReader(b)
 
 	var samples []TagSeparatorSample
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 
@@ -686,18 +698,15 @@ e,3,b`)
 }
 
 func TestCustomTag(t *testing.T) {
+
 	b := bytes.NewBufferString(`foo,BAR
 e,3`)
-	d := newSimpleDecoderFromReader(b)
 
-	defaultTagName := TagName
-	TagName = "custom"
-	defer func() {
-		TagName = defaultTagName
-	}()
+	c := New(WithTagName("custom"))
+	d := c.newSimpleDecoderFromReader(b)
 
 	var samples []CustomTagSample
-	if err := readTo(d, &samples); err != nil {
+	if err := c.readTo(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 
@@ -707,11 +716,12 @@ e,3`)
 }
 
 func TestCSVToMap(t *testing.T) {
+	c := New()
 	b := bytes.NewBufferString(`foo,BAR
 4,Jose
 2,Daniel
 5,Vincent`)
-	m, err := CSVToMap(bytes.NewReader(b.Bytes()))
+	m, err := c.CSVToMap(bytes.NewReader(b.Bytes()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -727,19 +737,20 @@ func TestCSVToMap(t *testing.T) {
 
 	b = bytes.NewBufferString(`foo,BAR,Baz
 e,3,b`)
-	_, err = CSVToMap(bytes.NewReader(b.Bytes()))
+	_, err = c.CSVToMap(bytes.NewReader(b.Bytes()))
 	if err == nil {
 		t.Fatal("Something went wrong")
 	}
 	b = bytes.NewBufferString(`foo
 e`)
-	_, err = CSVToMap(bytes.NewReader(b.Bytes()))
+	_, err = c.CSVToMap(bytes.NewReader(b.Bytes()))
 	if err == nil {
 		t.Fatal("Something went wrong")
 	}
 }
 
 func TestCSVToMaps(t *testing.T) {
+
 	b := bytes.NewBufferString(`foo,BAR,Baz
 4,Jose,42
 2,Daniel,21
@@ -807,6 +818,7 @@ func (c *trimDecoder) getCSVRows() ([][]string, error) {
 }
 
 func TestUnmarshalToDecoder(t *testing.T) {
+	c := New()
 	blah := 0
 	sptr := "*string"
 	sptr2 := ""
@@ -815,7 +827,7 @@ f,1,baz,,        *string
 e,3,b,,                            `)
 
 	var samples []Sample
-	if err := UnmarshalDecoderToCallback(&trimDecoder{LazyCSVReader(b)}, func(s Sample) {
+	if err := c.UnmarshalDecoderToCallback(&trimDecoder{LazyCSVReader(b)}, func(s Sample) {
 		samples = append(samples, s)
 	}); err != nil {
 		t.Fatal(err)
@@ -836,14 +848,15 @@ e,3,b,,                            `)
 }
 
 func TestUnmarshalWithoutHeader(t *testing.T) {
+	c := New()
 	blah := 0
 	sptr := ""
 	b := bytes.NewBufferString(`f,1,baz,1.66,,,
 e,3,b,,,,`)
-	d := newSimpleDecoderFromReader(b)
+	d := c.newSimpleDecoderFromReader(b)
 
 	var samples []Sample
-	if err := readToWithoutHeaders(d, &samples); err != nil {
+	if err := c.readToWithoutHeaders(d, &samples); err != nil {
 		t.Fatal(err)
 	}
 
@@ -859,6 +872,7 @@ e,3,b,,,,`)
 }
 
 func TestUnmarshalCSVWithoutHeaders(t *testing.T) {
+	c := New()
 	// tsv input to test custom csv reader
 	b := []byte("f\t1\tbaz\ne\t3\tblorp")
 	r := bytes.NewReader(b)
@@ -866,7 +880,7 @@ func TestUnmarshalCSVWithoutHeaders(t *testing.T) {
 	csvReader.Comma = '\t'
 
 	var samples []Sample
-	if err := UnmarshalCSVWithoutHeaders(csvReader, &samples); err != nil {
+	if err := c.UnmarshalCSVWithoutHeaders(csvReader, &samples); err != nil {
 		t.Fatal(err)
 	}
 

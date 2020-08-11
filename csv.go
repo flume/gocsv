@@ -17,57 +17,84 @@ import (
 	"sync"
 )
 
-// FailIfUnmatchedStructTags indicates whether it is considered an error when there is an unmatched
-// struct tag.
-var FailIfUnmatchedStructTags = false
-
-// FailIfDoubleHeaderNames indicates whether it is considered an error when a header name is repeated
-// in the csv header.
-var FailIfDoubleHeaderNames = false
-
-// ShouldAlignDuplicateHeadersWithStructFieldOrder indicates whether we should align duplicate CSV
-// headers per their alignment in the struct definition.
-var ShouldAlignDuplicateHeadersWithStructFieldOrder = false
-
-// TagName defines key in the struct field's tag to scan
-var TagName = "csv"
-
-// TagSeparator defines seperator string for multiple csv tags in struct fields
-var TagSeparator = ","
-
 // Normalizer is a function that takes and returns a string. It is applied to
 // struct and header field values before they are compared. It can be used to alter
 // names for comparison. For instance, you could allow case insensitive matching
 // or convert '-' to '_'.
 type Normalizer func(string) string
 
-type ErrorHandler func(*csv.ParseError) bool
-
-// normalizeName function initially set to a nop Normalizer.
-var normalizeName = DefaultNameNormalizer()
-
 // DefaultNameNormalizer is a nop Normalizer.
 func DefaultNameNormalizer() Normalizer { return func(s string) string { return s } }
 
+type ErrorHandler func(*csv.ParseError) bool
+
+type CSV struct {
+	failIfUnmatchedStructTags                       bool
+	failIfDoubleHeaderNames                         bool
+	shouldAlignDuplicateHeadersWithStructFieldOrder bool
+	tagName                                         string
+	tagSeparator                                    string
+	normalizeName                                   Normalizer
+	selfCSVWriter                                   func(out io.Writer, tagSeparator string) *SafeCSVWriter
+	selfCSVReader                                   func(in io.Reader) CSVReader
+}
+
+func WithShouldAlign() func(*CSV) {
+	return func(c *CSV) {
+		c.shouldAlignDuplicateHeadersWithStructFieldOrder = true
+	}
+}
+
+func WithFailDoubleHeader() func(*CSV) {
+	return func(c *CSV) {
+		c.failIfDoubleHeaderNames = true
+	}
+}
+
+func WithTagSeparator(tag string) func(*CSV) {
+	return func(c *CSV) {
+		c.tagSeparator = tag
+	}
+}
+
+func WithTagName(name string) func(*CSV) {
+	return func(c *CSV) {
+		c.tagName = name
+	}
+}
+
+const DefaultSeparator = ","
+const DefaultTagName = "csv"
+
+func New(opts ...func(*CSV)) *CSV {
+	c := &CSV{
+		tagName:       DefaultTagName,
+		tagSeparator:  DefaultSeparator,
+		normalizeName: DefaultNameNormalizer(),
+		selfCSVWriter: DefaultCSVWriter,
+		selfCSVReader: DefaultCSVReader,
+	}
+
+	for _, o := range opts {
+		o(c)
+	}
+	return c
+}
+
 // SetHeaderNormalizer sets the normalizer used to normalize struct and header field names.
-func SetHeaderNormalizer(f Normalizer) {
-	normalizeName = f
+func (c *CSV) SetHeaderNormalizer(f Normalizer) {
+	c.normalizeName = f
 	// Need to clear the cache hen the header normalizer changes.
 	structInfoCache = sync.Map{}
 }
 
-// --------------------------------------------------------------------------
-// CSVWriter used to format CSV
-
-var selfCSVWriter = DefaultCSVWriter
-
 // DefaultCSVWriter is the default SafeCSVWriter used to format CSV (cf. csv.NewWriter)
-func DefaultCSVWriter(out io.Writer) *SafeCSVWriter {
+func DefaultCSVWriter(out io.Writer, tagSeparator string) *SafeCSVWriter {
 	writer := NewSafeCSVWriter(csv.NewWriter(out))
 
 	// As only one rune can be defined as a CSV separator, we are going to trim
 	// the custom tag separator and use the first rune.
-	if runes := []rune(strings.TrimSpace(TagSeparator)); len(runes) > 0 {
+	if runes := []rune(strings.TrimSpace(tagSeparator)); len(runes) > 0 {
 		writer.Comma = runes[0]
 	}
 
@@ -75,18 +102,14 @@ func DefaultCSVWriter(out io.Writer) *SafeCSVWriter {
 }
 
 // SetCSVWriter sets the SafeCSVWriter used to format CSV.
-func SetCSVWriter(csvWriter func(io.Writer) *SafeCSVWriter) {
-	selfCSVWriter = csvWriter
+func (c *CSV) SetCSVWriter(csvWriter func(io.Writer, string) *SafeCSVWriter, seperator string) {
+	c.selfCSVWriter = csvWriter
+	c.tagSeparator = seperator
 }
 
-func getCSVWriter(out io.Writer) *SafeCSVWriter {
-	return selfCSVWriter(out)
+func (c CSV) getCSVWriter(out io.Writer) *SafeCSVWriter {
+	return c.selfCSVWriter(out, c.tagSeparator)
 }
-
-// --------------------------------------------------------------------------
-// CSVReader used to parse CSV
-
-var selfCSVReader = DefaultCSVReader
 
 // DefaultCSVReader is the default CSV reader used to parse CSV (cf. csv.NewReader)
 func DefaultCSVReader(in io.Reader) CSVReader {
@@ -102,171 +125,171 @@ func LazyCSVReader(in io.Reader) CSVReader {
 }
 
 // SetCSVReader sets the CSV reader used to parse CSV.
-func SetCSVReader(csvReader func(io.Reader) CSVReader) {
-	selfCSVReader = csvReader
+func (c *CSV) SetCSVReader(csvReader func(io.Reader) CSVReader) {
+	c.selfCSVReader = csvReader
 }
 
-func getCSVReader(in io.Reader) CSVReader {
-	return selfCSVReader(in)
+func (c CSV) getCSVReader(in io.Reader) CSVReader {
+	return c.selfCSVReader(in)
 }
 
 // --------------------------------------------------------------------------
 // Marshal functions
 
 // MarshalFile saves the interface as CSV in the file.
-func MarshalFile(in interface{}, file *os.File) (err error) {
-	return Marshal(in, file)
+func (c CSV) MarshalFile(in interface{}, file *os.File) (err error) {
+	return c.Marshal(in, file)
 }
 
 // MarshalString returns the CSV string from the interface.
-func MarshalString(in interface{}) (out string, err error) {
+func (c CSV) MarshalString(in interface{}) (out string, err error) {
 	bufferString := bytes.NewBufferString(out)
-	if err := Marshal(in, bufferString); err != nil {
+	if err := c.Marshal(in, bufferString); err != nil {
 		return "", err
 	}
 	return bufferString.String(), nil
 }
 
 // MarshalBytes returns the CSV bytes from the interface.
-func MarshalBytes(in interface{}) (out []byte, err error) {
+func (c CSV) MarshalBytes(in interface{}) (out []byte, err error) {
 	bufferString := bytes.NewBuffer(out)
-	if err := Marshal(in, bufferString); err != nil {
+	if err := c.Marshal(in, bufferString); err != nil {
 		return nil, err
 	}
 	return bufferString.Bytes(), nil
 }
 
 // Marshal returns the CSV in writer from the interface.
-func Marshal(in interface{}, out io.Writer) (err error) {
-	writer := getCSVWriter(out)
-	return writeTo(writer, in, false)
+func (c CSV) Marshal(in interface{}, out io.Writer) (err error) {
+	writer := c.getCSVWriter(out)
+	return c.writeTo(writer, in, false)
 }
 
 // MarshalWithoutHeaders returns the CSV in writer from the interface.
-func MarshalWithoutHeaders(in interface{}, out io.Writer) (err error) {
-	writer := getCSVWriter(out)
-	return writeTo(writer, in, true)
+func (c CSV) MarshalWithoutHeaders(in interface{}, out io.Writer) (err error) {
+	writer := c.getCSVWriter(out)
+	return c.writeTo(writer, in, true)
 }
 
 // MarshalChan returns the CSV read from the channel.
-func MarshalChan(c <-chan interface{}, out *SafeCSVWriter) error {
-	return writeFromChan(out, c)
+func (c CSV) MarshalChan(o <-chan interface{}, out *SafeCSVWriter) error {
+	return c.writeFromChan(out, o)
 }
 
 // MarshalCSV returns the CSV in writer from the interface.
-func MarshalCSV(in interface{}, out *SafeCSVWriter) (err error) {
-	return writeTo(out, in, false)
+func (c CSV) MarshalCSV(in interface{}, out *SafeCSVWriter) (err error) {
+	return c.writeTo(out, in, false)
 }
 
 // MarshalCSVWithoutHeaders returns the CSV in writer from the interface.
-func MarshalCSVWithoutHeaders(in interface{}, out *SafeCSVWriter) (err error) {
-	return writeTo(out, in, true)
+func (c CSV) MarshalCSVWithoutHeaders(in interface{}, out *SafeCSVWriter) (err error) {
+	return c.writeTo(out, in, true)
 }
 
 // --------------------------------------------------------------------------
 // Unmarshal functions
 
 // UnmarshalFile parses the CSV from the file in the interface.
-func UnmarshalFile(in *os.File, out interface{}) error {
-	return Unmarshal(in, out)
+func (c CSV) UnmarshalFile(in *os.File, out interface{}) error {
+	return c.Unmarshal(in, out)
 }
 
 // UnmarshalFile parses the CSV from the file in the interface.
-func UnmarshalFileWithErrorHandler(in *os.File, errHandler ErrorHandler, out interface{}) error {
-	return UnmarshalWithErrorHandler(in, errHandler, out)
+func (c CSV) UnmarshalFileWithErrorHandler(in *os.File, errHandler ErrorHandler, out interface{}) error {
+	return c.UnmarshalWithErrorHandler(in, errHandler, out)
 }
 
 // UnmarshalString parses the CSV from the string in the interface.
-func UnmarshalString(in string, out interface{}) error {
-	return Unmarshal(strings.NewReader(in), out)
+func (c CSV) UnmarshalString(in string, out interface{}) error {
+	return c.Unmarshal(strings.NewReader(in), out)
 }
 
 // UnmarshalBytes parses the CSV from the bytes in the interface.
-func UnmarshalBytes(in []byte, out interface{}) error {
-	return Unmarshal(bytes.NewReader(in), out)
+func (c CSV) UnmarshalBytes(in []byte, out interface{}) error {
+	return c.Unmarshal(bytes.NewReader(in), out)
 }
 
 // Unmarshal parses the CSV from the reader in the interface.
-func Unmarshal(in io.Reader, out interface{}) error {
-	return readTo(newSimpleDecoderFromReader(in), out)
+func (c CSV) Unmarshal(in io.Reader, out interface{}) error {
+	return c.readTo(c.newSimpleDecoderFromReader(in), out)
 }
 
 // Unmarshal parses the CSV from the reader in the interface.
-func UnmarshalWithErrorHandler(in io.Reader, errHandle ErrorHandler, out interface{}) error {
-	return readToWithErrorHandler(newSimpleDecoderFromReader(in), errHandle, out)
+func (c CSV) UnmarshalWithErrorHandler(in io.Reader, errHandle ErrorHandler, out interface{}) error {
+	return c.readToWithErrorHandler(c.newSimpleDecoderFromReader(in), errHandle, out)
 }
 
 // UnmarshalWithoutHeaders parses the CSV from the reader in the interface.
-func UnmarshalWithoutHeaders(in io.Reader, out interface{}) error {
-	return readToWithoutHeaders(newSimpleDecoderFromReader(in), out)
+func (c CSV) UnmarshalWithoutHeaders(in io.Reader, out interface{}) error {
+	return c.readToWithoutHeaders(c.newSimpleDecoderFromReader(in), out)
 }
 
 // UnmarshalCSVWithoutHeaders parses a headerless CSV with passed in CSV reader
-func UnmarshalCSVWithoutHeaders(in CSVReader, out interface{}) error {
-	return readToWithoutHeaders(csvDecoder{in}, out)
+func (c CSV) UnmarshalCSVWithoutHeaders(in CSVReader, out interface{}) error {
+	return c.readToWithoutHeaders(csvDecoder{in}, out)
 }
 
 // UnmarshalDecoder parses the CSV from the decoder in the interface
-func UnmarshalDecoder(in Decoder, out interface{}) error {
-	return readTo(in, out)
+func (c CSV) UnmarshalDecoder(in Decoder, out interface{}) error {
+	return c.readTo(in, out)
 }
 
 // UnmarshalCSV parses the CSV from the reader in the interface.
-func UnmarshalCSV(in CSVReader, out interface{}) error {
-	return readTo(csvDecoder{in}, out)
+func (c CSV) UnmarshalCSV(in CSVReader, out interface{}) error {
+	return c.readTo(csvDecoder{in}, out)
 }
 
 // UnmarshalToChan parses the CSV from the reader and send each value in the chan c.
 // The channel must have a concrete type.
-func UnmarshalToChan(in io.Reader, c interface{}) error {
-	if c == nil {
-		return fmt.Errorf("goscv: channel is %v", c)
+func (c CSV) UnmarshalToChan(in io.Reader, o interface{}) error {
+	if o == nil {
+		return fmt.Errorf("goscv: channel is %v", o)
 	}
-	return readEach(newSimpleDecoderFromReader(in), c)
+	return c.readEach(c.newSimpleDecoderFromReader(in), o)
 }
 
 // UnmarshalToChanWithoutHeaders parses the CSV from the reader and send each value in the chan c.
 // The channel must have a concrete type.
-func UnmarshalToChanWithoutHeaders(in io.Reader, c interface{}) error {
-	if c == nil {
-		return fmt.Errorf("goscv: channel is %v", c)
+func (c CSV) UnmarshalToChanWithoutHeaders(in io.Reader, o interface{}) error {
+	if o == nil {
+		return fmt.Errorf("goscv: channel is %v", o)
 	}
-	return readEachWithoutHeaders(newSimpleDecoderFromReader(in), c)
+	return c.readEachWithoutHeaders(c.newSimpleDecoderFromReader(in), o)
 }
 
 // UnmarshalDecoderToChan parses the CSV from the decoder and send each value in the chan c.
 // The channel must have a concrete type.
-func UnmarshalDecoderToChan(in SimpleDecoder, c interface{}) error {
-	if c == nil {
-		return fmt.Errorf("goscv: channel is %v", c)
+func (c CSV) UnmarshalDecoderToChan(in SimpleDecoder, o interface{}) error {
+	if o == nil {
+		return fmt.Errorf("goscv: channel is %v", o)
 	}
-	return readEach(in, c)
+	return c.readEach(in, o)
 }
 
 // UnmarshalStringToChan parses the CSV from the string and send each value in the chan c.
 // The channel must have a concrete type.
-func UnmarshalStringToChan(in string, c interface{}) error {
-	return UnmarshalToChan(strings.NewReader(in), c)
+func (c CSV) UnmarshalStringToChan(in string, o interface{}) error {
+	return c.UnmarshalToChan(strings.NewReader(in), o)
 }
 
 // UnmarshalBytesToChan parses the CSV from the bytes and send each value in the chan c.
 // The channel must have a concrete type.
-func UnmarshalBytesToChan(in []byte, c interface{}) error {
-	return UnmarshalToChan(bytes.NewReader(in), c)
+func (c CSV) UnmarshalBytesToChan(in []byte, o interface{}) error {
+	return c.UnmarshalToChan(bytes.NewReader(in), o)
 }
 
 // UnmarshalToCallback parses the CSV from the reader and send each value to the given func f.
 // The func must look like func(Struct).
-func UnmarshalToCallback(in io.Reader, f interface{}) error {
+func (c CSV) UnmarshalToCallback(in io.Reader, f interface{}) error {
 	valueFunc := reflect.ValueOf(f)
 	t := reflect.TypeOf(f)
 	if t.NumIn() != 1 {
 		return fmt.Errorf("the given function must have exactly one parameter")
 	}
 	cerr := make(chan error)
-	c := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, t.In(0)), 0)
+	o := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, t.In(0)), 0)
 	go func() {
-		cerr <- UnmarshalToChan(in, c.Interface())
+		cerr <- c.UnmarshalToChan(in, o.Interface())
 	}()
 	for {
 		select {
@@ -274,7 +297,7 @@ func UnmarshalToCallback(in io.Reader, f interface{}) error {
 			return err
 		default:
 		}
-		v, notClosed := c.Recv()
+		v, notClosed := o.Recv()
 		if !notClosed || v.Interface() == nil {
 			break
 		}
@@ -285,16 +308,16 @@ func UnmarshalToCallback(in io.Reader, f interface{}) error {
 
 // UnmarshalDecoderToCallback parses the CSV from the decoder and send each value to the given func f.
 // The func must look like func(Struct).
-func UnmarshalDecoderToCallback(in SimpleDecoder, f interface{}) error {
+func (c CSV) UnmarshalDecoderToCallback(in SimpleDecoder, f interface{}) error {
 	valueFunc := reflect.ValueOf(f)
 	t := reflect.TypeOf(f)
 	if t.NumIn() != 1 {
 		return fmt.Errorf("the given function must have exactly one parameter")
 	}
 	cerr := make(chan error)
-	c := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, t.In(0)), 0)
+	o := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, t.In(0)), 0)
 	go func() {
-		cerr <- UnmarshalDecoderToChan(in, c.Interface())
+		cerr <- c.UnmarshalDecoderToChan(in, o.Interface())
 	}()
 	for {
 		select {
@@ -302,7 +325,7 @@ func UnmarshalDecoderToCallback(in SimpleDecoder, f interface{}) error {
 			return err
 		default:
 		}
-		v, notClosed := c.Recv()
+		v, notClosed := o.Recv()
 		if !notClosed || v.Interface() == nil {
 			break
 		}
@@ -313,14 +336,14 @@ func UnmarshalDecoderToCallback(in SimpleDecoder, f interface{}) error {
 
 // UnmarshalBytesToCallback parses the CSV from the bytes and send each value to the given func f.
 // The func must look like func(Struct).
-func UnmarshalBytesToCallback(in []byte, f interface{}) error {
-	return UnmarshalToCallback(bytes.NewReader(in), f)
+func (c CSV) UnmarshalBytesToCallback(in []byte, f interface{}) error {
+	return c.UnmarshalToCallback(bytes.NewReader(in), f)
 }
 
 // UnmarshalStringToCallback parses the CSV from the string and send each value to the given func f.
 // The func must look like func(Struct).
-func UnmarshalStringToCallback(in string, c interface{}) (err error) {
-	return UnmarshalToCallback(strings.NewReader(in), c)
+func (c CSV) UnmarshalStringToCallback(in string, o interface{}) (err error) {
+	return c.UnmarshalToCallback(strings.NewReader(in), o)
 }
 
 // UnmarshalToCallbackWithError parses the CSV from the reader and
@@ -330,7 +353,7 @@ func UnmarshalStringToCallback(in string, c interface{}) (err error) {
 // parser and propagate the error to caller.
 //
 // The func must look like func(Struct) error.
-func UnmarshalToCallbackWithError(in io.Reader, f interface{}) error {
+func (c CSV) UnmarshalToCallbackWithError(in io.Reader, f interface{}) error {
 	valueFunc := reflect.ValueOf(f)
 	t := reflect.TypeOf(f)
 	if t.NumIn() != 1 {
@@ -344,9 +367,9 @@ func UnmarshalToCallbackWithError(in io.Reader, f interface{}) error {
 	}
 
 	cerr := make(chan error)
-	c := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, t.In(0)), 0)
+	o := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, t.In(0)), 0)
 	go func() {
-		cerr <- UnmarshalToChan(in, c.Interface())
+		cerr <- c.UnmarshalToChan(in, o.Interface())
 	}()
 
 	var fErr error
@@ -359,7 +382,7 @@ func UnmarshalToCallbackWithError(in io.Reader, f interface{}) error {
 			return fErr
 		default:
 		}
-		v, notClosed := c.Recv()
+		v, notClosed := o.Recv()
 		if !notClosed || v.Interface() == nil {
 			break
 		}
@@ -387,8 +410,8 @@ func UnmarshalToCallbackWithError(in io.Reader, f interface{}) error {
 // parser and propagate the error to caller.
 //
 // The func must look like func(Struct) error.
-func UnmarshalBytesToCallbackWithError(in []byte, f interface{}) error {
-	return UnmarshalToCallbackWithError(bytes.NewReader(in), f)
+func (c CSV) UnmarshalBytesToCallbackWithError(in []byte, f interface{}) error {
+	return c.UnmarshalToCallbackWithError(bytes.NewReader(in), f)
 }
 
 // UnmarshalStringToCallbackWithError parses the CSV from the string and
@@ -398,13 +421,13 @@ func UnmarshalBytesToCallbackWithError(in []byte, f interface{}) error {
 // parser and propagate the error to caller.
 //
 // The func must look like func(Struct) error.
-func UnmarshalStringToCallbackWithError(in string, c interface{}) (err error) {
-	return UnmarshalToCallbackWithError(strings.NewReader(in), c)
+func (c CSV) UnmarshalStringToCallbackWithError(in string, o interface{}) (err error) {
+	return c.UnmarshalToCallbackWithError(strings.NewReader(in), o)
 }
 
 // CSVToMap creates a simple map from a CSV of 2 columns.
-func CSVToMap(in io.Reader) (map[string]string, error) {
-	decoder := newSimpleDecoderFromReader(in)
+func (c CSV) CSVToMap(in io.Reader) (map[string]string, error) {
+	decoder := c.newSimpleDecoderFromReader(in)
 	header, err := decoder.getCSVRow()
 	if err != nil {
 		return nil, err

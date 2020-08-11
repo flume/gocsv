@@ -18,15 +18,15 @@ type Unmarshaller struct {
 }
 
 // NewUnmarshaller creates an unmarshaller from a csv.Reader and a struct.
-func NewUnmarshaller(reader *csv.Reader, out interface{}) (*Unmarshaller, error) {
+func (c CSV) NewUnmarshaller(reader *csv.Reader, out interface{}) (*Unmarshaller, error) {
 	headers, err := reader.Read()
 	if err != nil {
 		return nil, err
 	}
-	headers = normalizeHeaders(headers)
+	headers = c.normalizeHeaders(headers)
 
 	um := &Unmarshaller{reader: reader, outType: reflect.TypeOf(out)}
-	err = validate(um, out, headers)
+	err = c.validate(um, out, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (um *Unmarshaller) ReadUnmatched() (interface{}, map[string]string, error) 
 
 // validate ensures that a struct was used to create the Unmarshaller, and validates
 // CSV headers against the CSV tags in the struct.
-func validate(um *Unmarshaller, s interface{}, headers []string) error {
+func (c CSV) validate(um *Unmarshaller, s interface{}, headers []string) error {
 	concreteType := reflect.TypeOf(s)
 	if concreteType.Kind() == reflect.Ptr {
 		concreteType = concreteType.Elem()
@@ -64,7 +64,7 @@ func validate(um *Unmarshaller, s interface{}, headers []string) error {
 	if err := ensureOutInnerType(concreteType); err != nil {
 		return err
 	}
-	structInfo := getStructInfo(concreteType) // Get struct info to get CSV annotations.
+	structInfo := c.getStructInfo(concreteType) // Get struct info to get CSV annotations.
 	if len(structInfo.Fields) == 0 {
 		return errors.New("no csv struct tags found")
 	}
@@ -74,14 +74,14 @@ func validate(um *Unmarshaller, s interface{}, headers []string) error {
 		curHeaderCount := headerCount[csvColumnHeader]
 		if fieldInfo := getCSVFieldPosition(csvColumnHeader, structInfo, curHeaderCount); fieldInfo != nil {
 			csvHeadersLabels[i] = fieldInfo
-			if ShouldAlignDuplicateHeadersWithStructFieldOrder {
+			if c.shouldAlignDuplicateHeadersWithStructFieldOrder {
 				curHeaderCount++
 				headerCount[csvColumnHeader] = curHeaderCount
 			}
 		}
 	}
 
-	if FailIfDoubleHeaderNames {
+	if c.failIfDoubleHeaderNames {
 		if err := maybeDoubleHeaderNames(headers); err != nil {
 			return err
 		}
