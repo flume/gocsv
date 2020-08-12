@@ -24,6 +24,7 @@ func assertLine(t *testing.T, expected, actual []string) {
 }
 
 func Test_writeTo(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	blah := 2
@@ -32,7 +33,7 @@ func Test_writeTo(t *testing.T) {
 		{Foo: "f", Bar: 1, Baz: "baz", Frop: 0.1, Blah: &blah, SPtr: &sptr},
 		{Foo: "e", Bar: 3, Baz: "b", Frop: 6.0 / 13, Blah: nil, SPtr: nil},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -49,13 +50,14 @@ func Test_writeTo(t *testing.T) {
 }
 
 func Test_writeTo_Time(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	d := time.Unix(60, 0)
 	s := []DateTime{
 		{Foo: d},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, true); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -78,6 +80,7 @@ func Test_writeTo_Time(t *testing.T) {
 }
 
 func Test_writeTo_NoHeaders(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	blah := 2
@@ -86,7 +89,7 @@ func Test_writeTo_NoHeaders(t *testing.T) {
 		{Foo: "f", Bar: 1, Baz: "baz", Frop: 0.1, Blah: &blah, SPtr: &sptr},
 		{Foo: "e", Bar: 3, Baz: "b", Frop: 6.0 / 13, Blah: nil, SPtr: nil},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, true); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -102,13 +105,14 @@ func Test_writeTo_NoHeaders(t *testing.T) {
 }
 
 func Test_writeTo_multipleTags(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	s := []MultiTagSample{
 		{Foo: "abc", Bar: 123},
 		{Foo: "def", Bar: 234},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -126,6 +130,7 @@ func Test_writeTo_multipleTags(t *testing.T) {
 }
 
 func Test_writeTo_embed(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	blah := 2
@@ -139,7 +144,7 @@ func Test_writeTo_embed(t *testing.T) {
 			Grault: math.Pi,
 		},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -155,6 +160,7 @@ func Test_writeTo_embed(t *testing.T) {
 }
 
 func Test_writeTo_embedptr(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	blah := 2
@@ -168,7 +174,7 @@ func Test_writeTo_embedptr(t *testing.T) {
 			Grault: math.Pi,
 		},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -184,12 +190,13 @@ func Test_writeTo_embedptr(t *testing.T) {
 }
 
 func Test_writeTo_embedptr_nil(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	s := []EmbedPtrSample{
 		{},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -205,6 +212,7 @@ func Test_writeTo_embedptr_nil(t *testing.T) {
 }
 
 func Test_writeTo_embedmarshal(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	s := []EmbedMarshal{
@@ -212,7 +220,7 @@ func Test_writeTo_embedmarshal(t *testing.T) {
 			Foo: &MarshalSample{Dummy: "bar"},
 		},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), s, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -229,6 +237,7 @@ func Test_writeTo_embedmarshal(t *testing.T) {
 }
 
 func Test_writeTo_complex_embed(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	sptr := "*string"
@@ -252,7 +261,7 @@ func Test_writeTo_complex_embed(t *testing.T) {
 			Corge:      "hhh",
 		},
 	}
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), sfs, false); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), sfs, false); err != nil {
 		t.Fatal(err)
 	}
 	lines, err := csv.NewReader(&b).ReadAll()
@@ -267,6 +276,7 @@ func Test_writeTo_complex_embed(t *testing.T) {
 }
 
 func Test_writeTo_complex_inner_struct_embed(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
 	sfs := []Level0Struct{
@@ -294,7 +304,7 @@ func Test_writeTo_complex_inner_struct_embed(t *testing.T) {
 		},
 	}
 
-	if err := writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), sfs, true); err != nil {
+	if err := c.writeTo(NewSafeCSVWriter(csv.NewWriter(e.out)), sfs, true); err != nil {
 		t.Fatal(err)
 	}
 	lines, err := csv.NewReader(&b).ReadAll()
@@ -306,18 +316,19 @@ func Test_writeTo_complex_inner_struct_embed(t *testing.T) {
 }
 
 func Test_writeToChan(t *testing.T) {
+	c := New()
 	b := bytes.Buffer{}
 	e := &encoder{out: &b}
-	c := make(chan interface{})
+	o := make(chan interface{})
 	sptr := "*string"
 	go func() {
 		for i := 0; i < 100; i++ {
 			v := Sample{Foo: "f", Bar: i, Baz: "baz" + strconv.Itoa(i), Frop: float64(i), Blah: nil, SPtr: &sptr}
-			c <- v
+			o <- v
 		}
-		close(c)
+		close(o)
 	}()
-	if err := MarshalChan(c, NewSafeCSVWriter(csv.NewWriter(e.out))); err != nil {
+	if err := c.MarshalChan(o, NewSafeCSVWriter(csv.NewWriter(e.out))); err != nil {
 		t.Fatal(err)
 	}
 	lines, err := csv.NewReader(&b).ReadAll()
@@ -343,15 +354,17 @@ func TestRenamedTypesMarshal(t *testing.T) {
 		{RenamedFloatUnmarshaler: 2.3, RenamedFloatDefault: 2.4},
 	}
 
-	SetCSVWriter(func(out io.Writer) *SafeCSVWriter {
-		csvout := NewSafeCSVWriter(csv.NewWriter(out))
-		csvout.Comma = ';'
-		return csvout
-	})
-	// Switch back to default for tests executed after this
-	defer SetCSVWriter(DefaultCSVWriter)
+	c := New()
 
-	csvContent, err := MarshalString(&samples)
+	c.SetCSVWriter(func(out io.Writer, separator string) *SafeCSVWriter {
+		csvout := NewSafeCSVWriter(csv.NewWriter(out))
+		csvout.Comma = []rune(separator)[0]
+		return csvout
+	}, ";")
+	// Switch back to default for tests executed after this
+	defer c.SetCSVWriter(DefaultCSVWriter, DefaultSeparator)
+
+	csvContent, err := c.MarshalString(&samples)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +376,7 @@ func TestRenamedTypesMarshal(t *testing.T) {
 	samples = []RenamedSample{
 		{RenamedFloatUnmarshaler: 4.2, RenamedFloatDefault: 1.5},
 	}
-	_, err = MarshalString(&samples)
+	_, err = c.MarshalString(&samples)
 	if _, ok := err.(MarshalError); !ok {
 		t.Fatalf("Expected UnmarshalError, got %v", err)
 	}
@@ -376,13 +389,9 @@ func TestCustomTagSeparatorMarshal(t *testing.T) {
 		{RenamedFloatUnmarshaler: 2.3, RenamedFloatDefault: 2.4},
 	}
 
-	TagSeparator = " | "
-	// Switch back to default TagSeparator after this
-	defer func() {
-		TagSeparator = ","
-	}()
+	c := New(WithTagSeparator(" | "))
 
-	csvContent, err := MarshalString(&samples)
+	csvContent, err := c.MarshalString(&samples)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,9 +418,10 @@ func (e MarshalError) Error() string {
 }
 
 func Benchmark_MarshalCSVWithoutHeaders(b *testing.B) {
+	c := New()
 	dst := NewSafeCSVWriter(csv.NewWriter(ioutil.Discard))
 	for n := 0; n < b.N; n++ {
-		err := MarshalCSVWithoutHeaders([]Sample{{}}, dst)
+		err := c.MarshalCSVWithoutHeaders([]Sample{{}}, dst)
 		if err != nil {
 			b.Fatal(err)
 		}

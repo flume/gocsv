@@ -39,20 +39,20 @@ var structInfoCache sync.Map
 var structMap = make(map[reflect.Type]*structInfo)
 var structMapMutex sync.RWMutex
 
-func getStructInfo(rType reflect.Type) *structInfo {
+func (c CSV) getStructInfo(rType reflect.Type) *structInfo {
 	stInfo, ok := structInfoCache.Load(rType)
 	if ok {
 		return stInfo.(*structInfo)
 	}
 
-	fieldsList := getFieldInfos(rType, []int{})
+	fieldsList := c.getFieldInfos(rType, []int{})
 	stInfo = &structInfo{fieldsList}
 	structInfoCache.Store(rType, stInfo)
 
 	return stInfo.(*structInfo)
 }
 
-func getFieldInfos(rType reflect.Type, parentIndexChain []int) []fieldInfo {
+func (c CSV) getFieldInfos(rType reflect.Type, parentIndexChain []int) []fieldInfo {
 	fieldsCount := rType.NumField()
 	fieldsList := make([]fieldInfo, 0, fieldsCount)
 	for i := 0; i < fieldsCount; i++ {
@@ -70,7 +70,7 @@ func getFieldInfos(rType reflect.Type, parentIndexChain []int) []fieldInfo {
 			// unless it implements marshalText or marshalCSV. Structs that implement this
 			// should result in one value and not have their fields exposed
 			if !(canMarshal(field.Type.Elem())) {
-				fieldsList = append(fieldsList, getFieldInfos(field.Type.Elem(), indexChain)...)
+				fieldsList = append(fieldsList, c.getFieldInfos(field.Type.Elem(), indexChain)...)
 			}
 		}
 		// if the field is a struct, create a fieldInfo for each of its fields
@@ -78,7 +78,7 @@ func getFieldInfos(rType reflect.Type, parentIndexChain []int) []fieldInfo {
 			// unless it implements marshalText or marshalCSV. Structs that implement this
 			// should result in one value and not have their fields exposed
 			if !(canMarshal(field.Type)) {
-				fieldsList = append(fieldsList, getFieldInfos(field.Type, indexChain)...)
+				fieldsList = append(fieldsList, c.getFieldInfos(field.Type, indexChain)...)
 			}
 		}
 
@@ -88,12 +88,12 @@ func getFieldInfos(rType reflect.Type, parentIndexChain []int) []fieldInfo {
 		}
 
 		fieldInfo := fieldInfo{IndexChain: indexChain}
-		fieldTag := field.Tag.Get(TagName)
-		fieldTags := strings.Split(fieldTag, TagSeparator)
+		fieldTag := field.Tag.Get(c.tagName)
+		fieldTags := strings.Split(fieldTag, c.tagSeparator)
 		filteredTags := []string{}
 		for _, fieldTagEntry := range fieldTags {
 			if fieldTagEntry != "omitempty" {
-				filteredTags = append(filteredTags, normalizeName(fieldTagEntry))
+				filteredTags = append(filteredTags, c.normalizeName(fieldTagEntry))
 			} else {
 				fieldInfo.omitEmpty = true
 			}
@@ -104,7 +104,7 @@ func getFieldInfos(rType reflect.Type, parentIndexChain []int) []fieldInfo {
 		} else if len(filteredTags) > 0 && filteredTags[0] != "" {
 			fieldInfo.keys = filteredTags
 		} else {
-			fieldInfo.keys = []string{normalizeName(field.Name)}
+			fieldInfo.keys = []string{c.normalizeName(field.Name)}
 		}
 		fieldsList = append(fieldsList, fieldInfo)
 	}
