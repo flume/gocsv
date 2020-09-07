@@ -34,6 +34,7 @@ type CSV struct {
 	shouldAlignDuplicateHeadersWithStructFieldOrder bool
 	tagName                                         string
 	tagSeparator                                    string
+	comma                                           rune
 	normalizeName                                   Normalizer
 	selfCSVWriter                                   func(out io.Writer, tagSeparator string) *SafeCSVWriter
 	selfCSVReader                                   func(in io.Reader) CSVReader
@@ -51,25 +52,49 @@ func WithFailDoubleHeader() func(*CSV) {
 	}
 }
 
+// WithTagSeparator sets the default reflection tag separator to use
 func WithTagSeparator(tag string) func(*CSV) {
 	return func(c *CSV) {
 		c.tagSeparator = tag
 	}
 }
 
+// WithTagName sets the default reflection tag name to use
 func WithTagName(name string) func(*CSV) {
 	return func(c *CSV) {
 		c.tagName = name
 	}
 }
 
-const DefaultSeparator = ","
+// WithComma sets the comma to use inside the file
+func WithComma(comma string) func(*CSV) {
+	return func(c *CSV) {
+		c.comma = commaRuneFromString(comma)
+		c.SetCSVWriter(c.selfCSVWriter, comma)
+		c.selfCSVReader = func(in io.Reader) CSVReader {
+			iRead := csv.NewReader(in)
+			iRead.Comma = c.comma
+			return iRead
+		}
+	}
+}
+
+func commaRuneFromString(in string) rune {
+	if runes := []rune(strings.TrimSpace(in)); len(runes) > 0 {
+		return runes[0]
+	}
+	return DefaultComma
+}
+
+const DefaultTagSeparator = ","
 const DefaultTagName = "csv"
+const DefaultComma = ','
 
 func New(opts ...func(*CSV)) *CSV {
 	c := &CSV{
 		tagName:       DefaultTagName,
-		tagSeparator:  DefaultSeparator,
+		tagSeparator:  DefaultTagSeparator,
+		comma:         DefaultComma,
 		normalizeName: DefaultNameNormalizer(),
 		selfCSVWriter: DefaultCSVWriter,
 		selfCSVReader: DefaultCSVReader,
@@ -89,31 +114,29 @@ func (c *CSV) SetHeaderNormalizer(f Normalizer) {
 }
 
 // DefaultCSVWriter is the default SafeCSVWriter used to format CSV (cf. csv.NewWriter)
-func DefaultCSVWriter(out io.Writer, tagSeparator string) *SafeCSVWriter {
+func DefaultCSVWriter(out io.Writer, comma string) *SafeCSVWriter {
 	writer := NewSafeCSVWriter(csv.NewWriter(out))
 
-	// As only one rune can be defined as a CSV separator, we are going to trim
-	// the custom tag separator and use the first rune.
-	if runes := []rune(strings.TrimSpace(tagSeparator)); len(runes) > 0 {
-		writer.Comma = runes[0]
-	}
-
+	// Only one rune can be defined as a CSV separator. Trim comma and use first rune.
+	writer.Comma = commaRuneFromString(comma)
 	return writer
 }
 
 // SetCSVWriter sets the SafeCSVWriter used to format CSV.
-func (c *CSV) SetCSVWriter(csvWriter func(io.Writer, string) *SafeCSVWriter, seperator string) {
+func (c *CSV) SetCSVWriter(csvWriter func(io.Writer, string) *SafeCSVWriter, comma string) {
 	c.selfCSVWriter = csvWriter
-	c.tagSeparator = seperator
+	c.comma = commaRuneFromString(comma)
 }
 
 func (c CSV) getCSVWriter(out io.Writer) *SafeCSVWriter {
-	return c.selfCSVWriter(out, c.tagSeparator)
+	return c.selfCSVWriter(out, string(c.comma))
 }
 
 // DefaultCSVReader is the default CSV reader used to parse CSV (cf. csv.NewReader)
 func DefaultCSVReader(in io.Reader) CSVReader {
-	return csv.NewReader(in)
+	r := csv.NewReader(in)
+	r.Comma = DefaultComma
+	return r
 }
 
 // LazyCSVReader returns a lazy CSV reader, with LazyQuotes and TrimLeadingSpace.

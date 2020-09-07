@@ -362,7 +362,7 @@ func TestRenamedTypesMarshal(t *testing.T) {
 		return csvout
 	}, ";")
 	// Switch back to default for tests executed after this
-	defer c.SetCSVWriter(DefaultCSVWriter, DefaultSeparator)
+	defer c.SetCSVWriter(DefaultCSVWriter, string(DefaultComma))
 
 	csvContent, err := c.MarshalString(&samples)
 	if err != nil {
@@ -382,14 +382,14 @@ func TestRenamedTypesMarshal(t *testing.T) {
 	}
 }
 
-// TestCustomTagSeparatorMarshal tests for custom tag separator in marshalling.
-func TestCustomTagSeparatorMarshal(t *testing.T) {
+// TestCustomCommaMarshal tests for custom tag separator in marshalling.
+func TestCustomCommaMarshal(t *testing.T) {
 	samples := []RenamedSample{
 		{RenamedFloatUnmarshaler: 1.4, RenamedFloatDefault: 1.5},
 		{RenamedFloatUnmarshaler: 2.3, RenamedFloatDefault: 2.4},
 	}
 
-	c := New(WithTagSeparator(" | "))
+	c := New(WithComma(" | "))
 
 	csvContent, err := c.MarshalString(&samples)
 	if err != nil {
