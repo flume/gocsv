@@ -66,7 +66,8 @@ func WithTagName(name string) func(*CSV) {
 	}
 }
 
-// WithComma sets the comma to use inside the file
+// WithComma sets the comma to use inside the file. Input string should represent a single rune. Only the first rune
+// rune will be used.
 func WithComma(comma string) func(*CSV) {
 	return func(c *CSV) {
 		c.comma = commaRuneFromString(comma)

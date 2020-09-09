@@ -389,14 +389,14 @@ func TestCustomCommaMarshal(t *testing.T) {
 		{RenamedFloatUnmarshaler: 2.3, RenamedFloatDefault: 2.4},
 	}
 
-	c := New(WithComma(" | "))
+	c := New(WithComma("|"))
 
 	csvContent, err := c.MarshalString(&samples)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if csvContent != "foo|bar\n1,4|1.5\n2,3|2.4\n" {
-		t.Fatalf("Error marshaling floats with , as separator. Expected \nfoo|bar\n1,4|1.5\n2,3|2.4\ngot:\n%v", csvContent)
+		t.Fatalf("Error marshaling floats with | as separator. Expected \nfoo|bar\n1,4|1.5\n2,3|2.4\ngot:\n%v", csvContent)
 	}
 }
 
