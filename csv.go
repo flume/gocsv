@@ -80,7 +80,7 @@ func WithComma(comma string) func(*CSV) {
 }
 
 func commaRuneFromString(in string) rune {
-	if runes := []rune(strings.TrimSpace(in)); len(runes) > 0 {
+	if runes := []rune(in); len(runes) > 0 {
 		return runes[0]
 	}
 	return DefaultComma
