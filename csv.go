@@ -68,6 +68,7 @@ func WithTagName(name string) func(*CSV) {
 
 // WithComma sets the comma to use inside the file. Input string should represent a single rune. Only the first rune
 // rune will be used.
+// Deprecated: use SetCSVReader or SetCSVWriter instead
 func WithComma(comma string) func(*CSV) {
 	return func(c *CSV) {
 		c.comma = commaRuneFromString(comma)
@@ -91,6 +92,9 @@ const DefaultTagSeparator = ","
 const DefaultTagName = "csv"
 const DefaultComma = ','
 
+// New gives a new instance of gocsv
+// Pass in gocsv specific options here using the "With" funcs including: WithShouldAlign, WithFailDoubleHeader, WithTagSeparator, WithTagName
+// Options native to the golang CSV library like Comma and LazyQuotes should be set by using SetCSVReader and SetCSVWriter
 func New(opts ...func(*CSV)) *CSV {
 	c := &CSV{
 		tagName:       DefaultTagName,
